@@ -1,0 +1,8 @@
+{
+    "name": "polonium",
+    "author": "Lucas Bortoli",
+    "dependencies": {
+        "discord.js": "^13.6.0",
+        "typescript": "^4.5.5"
+    }
+}
