@@ -21,7 +21,7 @@ class Recorder {
     public voiceReceiver: VoiceReceiver
 
     public destroyed: boolean = false
-    public recording_start_time: Timestamp = 0
+    public recording_start_time: Timestamp = -1
 
     constructor(textChannel: GuildTextBasedChannel, voiceChannel: VoiceBasedChannel, voiceConnection: VoiceConnection) {
         this.textChannel = textChannel
@@ -37,11 +37,13 @@ class Recorder {
     }
 
     public async start() {
+        // clean up old recording directory
+        await fsp.rm(this.recordingsDir, { recursive: true, force: true })
+
         const selfMember = await this.guild.members.fetch(this.client.user.id)
 
         selfMember.setNickname(`🔴 Recording`)
 
-        this.recording_start_time = Date.now()
         this.voiceReceiver.speaking.addListener('start', user => this.onUserSpeakingStart(user))
         this.voiceReceiver.speaking.addListener('end', user => this.onUserSpeakingStop(user))
     }
@@ -82,11 +84,15 @@ class Recorder {
         if (user.bot)
             return
 
+        // Recording starts when the first person speaks
+        if (this.recording_start_time === -1)
+            this.recording_start_time = Date.now()
+
         const speaking_start_time = Date.now() - this.recording_start_time
 
         console.log(`${new Date().toLocaleTimeString()} User ${user.tag} falando`)
 
-        const filePath = `recordings/${this.guild.id}/${this.voiceChannel.id}/`
+        const filePath = this.recordingsDir
         const rawFilename = `${filePath}${Date.now()}-${userId}.pcm`
     
         await fsp.mkdir(filePath, { recursive: true })
@@ -99,15 +105,14 @@ class Recorder {
         pipeline(rawStream, decoder, fileStream, (err) => {
             if (err) {
                 console.warn(`❌ Erro ao escrever arquivo ${rawFilename} - ${err.message}`);
-            } else {
-                console.log(`⌛ Transcodando arquivo ${rawFilename}..`)
-
-                const speaking_stop_time = Date.now() - this.recording_start_time
-                const transcodedFilename = `${filePath}${speaking_start_time}-${speaking_stop_time},${userId}.ogg`
-
-                child_process.spawn(`ffmpeg -f s16le -ar 48000 -ac 2 -i ${rawFilename} ${transcodedFilename}`, { shell: true })
-                    .once('exit', () => fs.unlink(rawFilename, () => {})) // delete original file
             }
+            
+            console.log(`⌛ Transcodando arquivo ${rawFilename}..`)
+            const speaking_stop_time = Date.now() - this.recording_start_time
+            const transcodedFilename = `${filePath}${speaking_start_time}-${speaking_stop_time},${userId}.ogg`
+
+            child_process.spawn(`ffmpeg -f s16le -ar 48000 -ac 2 -i ${rawFilename} ${transcodedFilename}`, { shell: true })
+                .once('exit', () => fs.unlink(rawFilename, () => {})) // delete original file
         })
     }
 
@@ -133,6 +138,13 @@ class Recorder {
             this.stop()
             this.destroy()
         }
+    }
+
+    /**
+     * Where recording fragments are stored
+     */
+    get recordingsDir(): string {
+        return `recordings/${this.guild.id}/${this.voiceChannel.id}/`
     }
 }
 

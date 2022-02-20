@@ -1,6 +1,9 @@
 import * as Discord from 'discord.js'
 import { joinVoiceChannel } from '@discordjs/voice'
 import Recorder, { Recorders } from './recorder'
+import Mixer from './mixer'
+import Utils from './util'
+import * as fsp from 'fs/promises'
 
 enum CommandResult {
     Success = 0,
@@ -67,6 +70,25 @@ const Commands: Command[] = [
 
             recorder.stop()
             recorder.destroy()
+
+            const mixer = new Mixer(recorder.recordingsDir, 'output.ogg')
+
+            const statusMsg = await message.reply('Aguarde! Processando a gravação - pode demorar um pouco')
+            await Utils.delay(1000)
+
+            try {
+                await mixer.run()
+            } catch (error) {
+                console.error(`Erro na mixagem:`, error)
+                await statusMsg.edit(statusMsg.content + `\nErro na mixagem.`)
+                return CommandResult.Error
+            }
+
+            const outputFileSize = (await fsp.stat(mixer.outputFile)).size
+
+            await statusMsg.edit(statusMsg.content + `\nFazendo upload... Enviarei também o link no seu DM quando terminar. (são ${Utils.humanFileSize(outputFileSize)})`)
+            
+            await statusMsg.edit(statusMsg.content + '\n✅ Processamento concluído')
             
             return CommandResult.Success
         }
