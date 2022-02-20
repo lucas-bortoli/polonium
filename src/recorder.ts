@@ -8,6 +8,7 @@ import * as child_process from 'child_process'
 
 type GuildID = Snowflake
 type UserID = Snowflake
+type Timestamp = number
 
 const Recorders = new Map<GuildID, Recorder>()
 
@@ -20,6 +21,7 @@ class Recorder {
     public voiceReceiver: VoiceReceiver
 
     public destroyed: boolean = false
+    public recording_start_time: Timestamp = 0
 
     constructor(textChannel: GuildTextBasedChannel, voiceChannel: VoiceBasedChannel, voiceConnection: VoiceConnection) {
         this.textChannel = textChannel
@@ -39,6 +41,7 @@ class Recorder {
 
         selfMember.setNickname(`🔴 Recording`)
 
+        this.recording_start_time = Date.now()
         this.voiceReceiver.speaking.addListener('start', user => this.onUserSpeakingStart(user))
         this.voiceReceiver.speaking.addListener('end', user => this.onUserSpeakingStop(user))
     }
@@ -51,6 +54,8 @@ class Recorder {
         this.voiceReceiver.speaking.removeAllListeners('end')
 
         selfMember.setNickname(``)
+
+        console.log(`A gravação parou`)
     }
 
     public destroy() {
@@ -59,6 +64,7 @@ class Recorder {
 
         this.voiceConnection = null
         this.destroyed = true
+
         Recorders.delete(this.guild.id)
     }
 
@@ -76,13 +82,15 @@ class Recorder {
         if (user.bot)
             return
 
+        const speaking_start_time = Date.now() - this.recording_start_time
+
         console.log(`${new Date().toLocaleTimeString()} User ${user.tag} falando`)
 
         const filePath = `recordings/${this.guild.id}/${this.voiceChannel.id}/`
-        const fileName = `${Date.now()}-${userId}.pcm`
+        const rawFilename = `${filePath}${Date.now()}-${userId}.pcm`
     
         await fsp.mkdir(filePath, { recursive: true })
-        const fileStream = fs.createWriteStream(`${filePath}${fileName}`)
+        const fileStream = fs.createWriteStream(rawFilename)
     
         const rawStream = this.voiceReceiver.subscribe(userId, { end: { behavior: EndBehaviorType.AfterSilence, duration: 100 }})
 
@@ -90,12 +98,15 @@ class Recorder {
 
         pipeline(rawStream, decoder, fileStream, (err) => {
             if (err) {
-                console.warn(`❌ Erro ao escrever arquivo ${fileName} - ${err.message}`);
+                console.warn(`❌ Erro ao escrever arquivo ${rawFilename} - ${err.message}`);
             } else {
-                console.log(`⌛ Transcodando arquivo ${fileName}...`)
+                console.log(`⌛ Transcodando arquivo ${rawFilename}..`)
 
-                child_process.spawn(`ffmpeg -f s16le -ar 48000 -ac 2 -i ${filePath}${fileName} ${filePath}${fileName.replace('.pcm', '.ogg')}`, { shell: true })
-                    .once('exit', () => fs.unlink(`${filePath}${fileName}`, () => {})) // delete original file
+                const speaking_stop_time = Date.now() - this.recording_start_time
+                const transcodedFilename = `${filePath}${speaking_start_time}-${speaking_stop_time},${userId}.ogg`
+
+                child_process.spawn(`ffmpeg -f s16le -ar 48000 -ac 2 -i ${rawFilename} ${transcodedFilename}`, { shell: true })
+                    .once('exit', () => fs.unlink(rawFilename, () => {})) // delete original file
             }
         })
     }
@@ -119,7 +130,8 @@ class Recorder {
             // Seems to be reconnecting to a new channel - ignore disconnect
         } catch (error) {
             // Seems to be a real disconnect which SHOULDN'T be recovered from
-            this.voiceConnection.destroy()
+            this.stop()
+            this.destroy()
         }
     }
 }
