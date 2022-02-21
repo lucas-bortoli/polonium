@@ -41,13 +41,10 @@ class Mixer {
             userId: f.split(',')[1].split('.').shift()
         }))
     
-        let command = ``
+        // Build command
+        let command = `ffmpeg`
     
-        command += `ffmpeg`
-    
-        for (const file of files) {
-            command += ` -i ${baseDir}${file.name}`
-        }
+        for (const file of files) { command += ` -i ${baseDir}${file.name}` }
     
         command += ` -filter_complex "`
     
@@ -56,10 +53,7 @@ class Mixer {
             command += `[${i}:a]adelay=${f.startMs}|${f.startMs}[out${i}];`
         }
     
-        for (let i = 0; i < files.length; i++) {
-            let f = files[i]
-            command += `[out${i}]`
-        }
+        for (let i = 0; i < files.length; i++) { command += `[out${i}]` }
     
         command += `amix=inputs=${files.length}[out]" -map "[out]" ${this.outputFile}`
     
