@@ -1,5 +1,5 @@
 import { VoiceConnection, VoiceConnectionState, entersState, VoiceConnectionStatus, VoiceReceiver, AudioReceiveStream, EndBehaviorType } from '@discordjs/voice'
-import { Client, Guild, GuildTextBasedChannel, Snowflake, VoiceBasedChannel } from 'discord.js'
+import { Client, Guild, GuildMember, GuildTextBasedChannel, Snowflake, VoiceBasedChannel } from 'discord.js'
 import fsp from 'fs/promises'
 import fs from 'fs'
 import { pipeline } from 'node:stream'
@@ -23,13 +23,16 @@ class Recorder {
     public destroyed: boolean = false
     public recording_start_time: Timestamp = -1
 
-    constructor(textChannel: GuildTextBasedChannel, voiceChannel: VoiceBasedChannel, voiceConnection: VoiceConnection) {
+    public startedBy: GuildMember
+
+    constructor(startedBy: GuildMember, textChannel: GuildTextBasedChannel, voiceChannel: VoiceBasedChannel, voiceConnection: VoiceConnection) {
         this.textChannel = textChannel
         this.voiceConnection = voiceConnection
         this.voiceChannel = voiceChannel
         this.voiceReceiver = voiceConnection.receiver
         this.guild = textChannel.guild
         this.client = textChannel.client
+        this.startedBy = startedBy
         
         Recorders.set(textChannel.guildId, this)
         

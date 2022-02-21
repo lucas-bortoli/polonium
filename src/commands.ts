@@ -7,7 +7,8 @@ import * as fsp from 'fs/promises'
 
 enum CommandResult {
     Success = 0,
-    Error = 1
+    Error = 1,
+    AbortedByUser = 2
 }
 
 type Command = {
@@ -28,7 +29,7 @@ const Commands: Command[] = [
         }
     },
     {
-        name: 'record',
+        name: 'start',
         description: 'Começa a gravação em um canal de voz',
         owner_only: false,
         exec: async (client, message, args) => {
@@ -37,6 +38,36 @@ const Commands: Command[] = [
             if (!voiceChannel) {
                 await message.reply('Você deve estar em um canal de voz para iniciar a gravação.')
                 return CommandResult.Error
+            }
+
+            const permissionLevel = Utils.determineMemberPermissionLevel(message.member)
+
+            if (Recorders.has(message.guildId)) {
+                const prevRecording = Recorders.get(message.guildId)
+                const prevPermissionLevel = Utils.determineMemberPermissionLevel(prevRecording.startedBy)
+
+                if (message.author.id !== prevRecording.startedBy.id
+                    && permissionLevel > prevPermissionLevel) {
+                        // Ask to stop previous recording
+                        await message.reply(`Só é possível gravar um canal de voz ao mesmo tempo, e já há uma gravação acontecendo nesse servidor. Deseja pará-la? Digite \`${process.env.PREFIX}yes\` para confirmar.`)
+                        let replies = await message.channel.awaitMessages({
+                            filter: (_msg) => 
+                                _msg.author.id === message.author.id && _msg.content.toLowerCase() === `${process.env.PREFIX}yes`,
+                            time: 60 * 1000,
+                            max: 1
+                        })
+
+                        // Timeout; abort command
+                        if (replies.size < 1) 
+                            return CommandResult.AbortedByUser
+
+                        // If we reached here, then the user said "yes"; stop previous recording and continue...
+                        await prevRecording.stop()
+                        prevRecording.destroy()
+                } else {
+                    await message.reply('Já há uma gravação acontecendo nesse servidor.')
+                    return CommandResult.Error
+                }
             }
 
             await message.reply('Entrando no canal...')
@@ -49,7 +80,7 @@ const Commands: Command[] = [
                 adapterCreator: voiceChannel.guild.voiceAdapterCreator
             })
 
-            const recorder = new Recorder(message.channel as Discord.GuildTextBasedChannel, voiceChannel, voiceConnection)
+            const recorder = new Recorder(message.member, message.channel as Discord.GuildTextBasedChannel, voiceChannel, voiceConnection)
 
             recorder.start()
             
@@ -61,12 +92,12 @@ const Commands: Command[] = [
         description: 'Para a gravação atual',
         owner_only: false,
         exec: async (client, message, args) => {
-            const recorder = Recorders.get(message.guildId)
-
-            if (!recorder) {
+            if (!Recorders.has(message.guildId)) {
                 await message.reply('Não há nenhuma gravação ocorrendo nesse servidor.')
                 return CommandResult.Error
             }
+
+            const recorder = Recorders.get(message.guildId)
 
             recorder.stop()
             recorder.destroy()
