@@ -5,10 +5,12 @@ const pt_BR = {
     cmdStartEnteringChannel             : "Entrando no canal...",
 
     cmdStopNotRecording                 : "Não há nenhuma gravação ocorrendo nesse servidor.",
-    cmdStopProcessing                   : "Aguarde! Processando a gravação - pode demorar um pouco...",
-    cmdStopProcessingError              : "Ocorreu um erro ao processar a gravação.",
-    cmdStopUploading                    : "Fazendo upload... Enviarei também o link no seu DM quando terminar. (são %{SIZE})",
-    cmdStopDone                         : "✅ Processamento concluído",
+    cmdStopInsufficientPermissions      : "Você não tem permissão para parar a gravação atual.",
+    
+    recordingProcessingStart            : "Aguarde! Processando a gravação - pode demorar um pouco...",
+    recordingProcessingError            : "Ocorreu um erro ao processar a gravação.",
+    recordingUploading                  : "Fazendo upload... Enviarei também o link no seu DM quando terminar. (são %{SIZE})",
+    recordingProcessingDone             : "✅ Processamento concluído",
 }
 
 type LanguageFields = keyof typeof pt_BR

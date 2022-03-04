@@ -7,6 +7,7 @@ import { pipeline } from 'node:stream'
 import * as prism from 'prism-media'
 import * as child_process from 'child_process'
 import { RecordingLogItemType } from './types'
+import DeferredEvent from './deferred'
 
 type GuildID = Snowflake
 type UserID = Snowflake
@@ -21,6 +22,7 @@ class Recorder {
     private voiceConnection: VoiceConnection
     private voiceReceiver: VoiceReceiver
     private eventLogFile: fs.WriteStream
+    public onStopEvent: DeferredEvent<void>
 
     public stopped: boolean = false
     public recordingStartTimestamp: number = -1
@@ -33,6 +35,7 @@ class Recorder {
         this.guild = startedBy.guild
         this.client = startedBy.client
         this.startedBy = startedBy
+        this.onStopEvent = new DeferredEvent()
         
         Recorders.set(this.guild.id, this)
         
@@ -75,13 +78,16 @@ class Recorder {
 
         this.voiceConnection = null
         this.stopped = true
-        
+
         this.logEvent('stop', [])
         this.eventLogFile.close()
         Recorders.delete(this.guild.id)
 
         const selfMember = await this.guild.members.fetch(this.client.user.id)
         selfMember.setNickname(``)
+
+        // Call all external stop event handlers
+        this.onStopEvent.resolve()
     }
 
     /**

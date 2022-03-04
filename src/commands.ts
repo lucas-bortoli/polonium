@@ -9,7 +9,8 @@ import { l } from './lang'
 enum CommandResult {
     Success = 0,
     Error = 1,
-    AbortedByUser = 2
+    AbortedByUser = 2,
+    NoPermission = 3
 }
 
 type Command = {
@@ -83,6 +84,27 @@ const Commands: Command[] = [
             const recorder = new Recorder(message.member, voiceChannel, voiceConnection)
             
             await recorder.start()
+
+            // Called when the recording stops.
+            recorder.onStopEvent.promise.then(async () => {
+                const mixer = new Mixer(recorder.recordingsDir)
+
+                const statusMsg = await message.reply(l('recordingProcessingStart'))
+                await Utils.delay(1000)
+    
+                try {
+                    await mixer.run()
+                } catch (error) {
+                    console.error('Error:', error)
+                    await statusMsg.edit(statusMsg.content + '\n' + l('recordingProcessingError'))
+                    return CommandResult.Error
+                }
+    
+                const outputFileSize = (await fsp.stat(mixer.outputFilePath)).size
+    
+                await statusMsg.edit(statusMsg.content + '\n' + l('recordingUploading', { SIZE: Utils.humanFileSize(outputFileSize) }))
+                await statusMsg.edit(statusMsg.content + '\n' + l('recordingProcessingDone'))
+            })
             
             return CommandResult.Success
         }
@@ -98,26 +120,15 @@ const Commands: Command[] = [
             }
 
             const recorder = Recorders.get(message.guildId)
+            const permissionLevel = Utils.determineMemberPermissionLevel(message.member)
+            const prevPermissionLevel = Utils.determineMemberPermissionLevel(recorder.startedBy)
 
-            await recorder.stop()
-
-            const mixer = new Mixer(recorder.recordingsDir)
-
-            const statusMsg = await message.reply(l('cmdStopProcessing'))
-            await Utils.delay(1000)
-
-            try {
-                await mixer.run()
-            } catch (error) {
-                console.error('Error:', error)
-                await statusMsg.edit(statusMsg.content + '\n' + l('cmdStopProcessingError'))
-                return CommandResult.Error
+            if (permissionLevel <= prevPermissionLevel || message.author.id === recorder.startedBy.id) {
+                await message.reply(l('cmdStopInsufficientPermissions'))
+                return CommandResult.NoPermission
             }
 
-            const outputFileSize = (await fsp.stat(mixer.outputFilePath)).size
-
-            await statusMsg.edit(statusMsg.content + '\n' + l('cmdStopUploading', { SIZE: Utils.humanFileSize(outputFileSize) }))
-            await statusMsg.edit(statusMsg.content + '\n' + l('cmdStopDone'))
+            await recorder.stop()
 
             return CommandResult.Success
         }
