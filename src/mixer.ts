@@ -1,20 +1,16 @@
 import * as path from 'path'
 import * as fsp from 'fs/promises'
 import * as child_proc from 'child-process-promise'
-import { promisify } from 'util'
 
 class Mixer {
-    private outputFilename: string
     private recordingsDir: string
 
     /**
      * Mixes recording fragments into one single sound file.
      * @param recordingsDir Directory where each sound file is stored in
-     * @param outputFilename The full path to the output file.
      */
-    constructor(recordingsDir: string, outputFilename: string) {
+    constructor(recordingsDir: string) {
         this.recordingsDir = recordingsDir
-        this.outputFilename = outputFilename
     }
 
     async run() {
@@ -31,7 +27,7 @@ class Mixer {
         fileList = fileList.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
     
         fileList = fileList
-            .filter(f => f !== path.basename(this.outputFile))
+            .filter(f => f !== path.basename(this.outputFilePath))
             .filter(f => path.extname(f) === '.ogg')
     
         let files = fileList.map(f => ({
@@ -55,13 +51,16 @@ class Mixer {
     
         for (let i = 0; i < files.length; i++) { command += `[out${i}]` }
     
-        command += `amix=inputs=${files.length}[out]" -map "[out]" ${this.outputFile}`
+        command += `amix=inputs=${files.length}[out]" -map "[out]" ${this.outputFilePath}`
     
         return command
     }
 
-    get outputFile(): string {
-        return path.join(this.recordingsDir, this.outputFilename)
+    /**
+     * The absolute path to the output file of the mixer.
+     */
+    public get outputFilePath(): string {
+        return path.join(this.recordingsDir, 'output.ogg')
     }
 }
 

@@ -32,19 +32,4 @@ client.on('messageCreate', async message => {
     }
 })
 
-/**
- * Emitted when a user enters or leaves a voice channel.
- */
-client.on('voiceStateUpdate', async (_, newState) => {
-    const guildId = newState.guild.id
-    const channelId = newState.channelId
-
-    // Check if there's a recording for this guild
-    if (Recorders.has(guildId)) {
-        const recorder = Recorders.get(guildId)
-
-        
-    }
-})
-
 client.login(process.env.TOKEN)
