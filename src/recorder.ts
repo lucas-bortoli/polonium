@@ -39,6 +39,9 @@ class Recorder {
         this.voiceConnection.on(VoiceConnectionStatus.Disconnected, (oldState, newState) => this.onVoiceDisconnect(oldState, newState))
     }
 
+    /**
+     * Starts the recording.
+     */
     public async start() {
         // clean up old recording directory
         await fsp.rm(this.recordingsDir, { recursive: true, force: true })
@@ -47,40 +50,38 @@ class Recorder {
         const recordingEventsFile = path.join(this.recordingsDir, 'recording.rectxt')
         this.eventLogFile = fs.createWriteStream(recordingEventsFile)
 
-        this.logEvent('start', [])
-
-        const selfMember = await this.guild.members.fetch(this.client.user.id)
-
-        selfMember.setNickname(`🔴 Recording`)
-
+        // Create event listeners
         this.voiceReceiver.speaking.addListener('start', uid => this.onUserSpeakingStart(uid))
         this.voiceReceiver.speaking.addListener('end', uid => this.onUserSpeakingStop(uid))
         this.client.on('voiceStateUpdate', this.onUserVoiceStateUpdate)
+
+        this.logEvent('start', [])
+
+        const selfMember = await this.guild.members.fetch(this.client.user.id)
+        selfMember.setNickname(`🔴 Recording`)
     }
 
     /**
      * Stops the current recording.
      */
     public async stop() {
-        const selfMember = await this.guild.members.fetch(this.client.user.id)
-
         // Remove listeners and close streams
         this.voiceReceiver.speaking.removeAllListeners('start')
         this.voiceReceiver.speaking.removeAllListeners('end')
         this.client.removeListener('voiceStateUpdate', this.onUserVoiceStateUpdate)
-
-        this.logEvent('stop', [])
-        this.eventLogFile.close()
-
-        selfMember.setNickname(``)
 
         if (this.voiceConnection)
             this.voiceConnection.destroy()
 
         this.voiceConnection = null
         this.stopped = true
-
+        
+        this.logEvent('stop', [])
+        this.eventLogFile.close()
         Recorders.delete(this.guild.id)
+
+        const selfMember = await this.guild.members.fetch(this.client.user.id)
+        selfMember.setNickname(``)
     }
 
     /**
