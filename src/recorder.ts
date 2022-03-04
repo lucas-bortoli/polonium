@@ -136,10 +136,10 @@ class Recorder {
         // Ignore events from other guilds
         if (this.guild.id !== guildId) return
     
-        if (!oldState.channelId && newState.channelId) {
+        if (oldState.channelId !== this.voiceChannel.id && newState.channelId === this.voiceChannel.id) {
             // Joined the channel
             this.logEvent('userEnterChannel', [ newState.id ])
-        } else if (oldState.channelId && !newState.channelId) {
+        } else if (oldState.channelId === this.voiceChannel.id && newState.channelId !== this.voiceChannel.id) {
             // Left the channel
             this.logEvent('userLeaveChannel', [ newState.id ])
         }
