@@ -1,13 +1,13 @@
-import { VoiceConnection, VoiceConnectionState, entersState, VoiceConnectionStatus, VoiceReceiver, AudioReceiveStream, EndBehaviorType } from '@discordjs/voice'
-import { Client, Guild, GuildMember, GuildTextBasedChannel, Snowflake, VoiceBasedChannel, VoiceState } from 'discord.js'
+import { VoiceConnection, VoiceConnectionState, entersState, VoiceConnectionStatus, VoiceReceiver, createAudioPlayer, EndBehaviorType, AudioPlayer, createAudioResource, StreamType } from '@discordjs/voice'
+import { Client, Guild, GuildMember, Snowflake, VoiceBasedChannel, VoiceState } from 'discord.js'
 import fsp from 'fs/promises'
 import fs from 'fs'
 import path from 'path'
-import { pipeline } from 'node:stream'
 import * as prism from 'prism-media'
 import * as child_process from 'child_process'
 import { RecordingLogItemType } from './types'
 import DeferredEvent from './deferred'
+import Util from './util'
 
 type GuildID = Snowflake
 type UserID = Snowflake
@@ -22,6 +22,9 @@ class Recorder {
     private voiceConnection: VoiceConnection
     private voiceReceiver: VoiceReceiver
     private eventLogFile: fs.WriteStream
+
+    private sfxPlayer: AudioPlayer
+
     public onStopEvent: DeferredEvent<void>
     public stopped: boolean = false
     public recordingStartTimestamp: number = -1
@@ -38,8 +41,13 @@ class Recorder {
         this.client = startedBy.client
         this.startedBy = startedBy
         this.onStopEvent = new DeferredEvent()
-        
+        this.sfxPlayer = createAudioPlayer()
+
         Recorders.set(this.guild.id, this)
+
+        this.sfxPlayer.on('error', error => {
+            console.error('Error:', error.message, 'with track', error.resource);
+        })
         
         this.voiceConnection.on(VoiceConnectionStatus.Disconnected, (oldState, newState) => this.onVoiceDisconnect(oldState, newState))
     }
@@ -65,12 +73,19 @@ class Recorder {
 
         const selfMember = await this.guild.members.fetch(this.client.user.id)
         selfMember.setNickname(`🔴 Recording`)
+
+        await this.voiceConnection.subscribe(this.sfxPlayer)
+        await Util.delay(100)
+        this.playSfx('rec_start')
     }
 
     /**
      * Stops the current recording.
      */
     public async stop() {
+        this.playSfx('rec_stop')
+        await Util.delay(2000)
+        
         // Remove listeners and close streams
         this.voiceReceiver.speaking.removeAllListeners('start')
         this.voiceReceiver.speaking.removeAllListeners('end')
@@ -79,7 +94,11 @@ class Recorder {
         if (this.voiceConnection)
             this.voiceConnection.destroy()
 
+        if (this.sfxPlayer)
+            this.sfxPlayer.stop()
+
         this.voiceConnection = null
+        this.sfxPlayer = null
         this.stopped = true
 
         this.logEvent('stop', [])
@@ -194,6 +213,13 @@ class Recorder {
         if (stream && stream.writable) {
             stream.write([ currentRecordingTime, type, ...data ].join(',') + '\n')
         }
+    }
+
+    private playSfx(sfx: 'rec_start'|'rec_stop'): void {
+        const resource = createAudioResource(`resources/sounds/${sfx}.ogg`, { inputType: StreamType.OggOpus })
+
+        if (this.sfxPlayer && this.sfxPlayer.playable)
+            this.sfxPlayer.play(resource)
     }
 
     /**
