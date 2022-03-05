@@ -23,7 +23,6 @@ class Recorder {
     private voiceReceiver: VoiceReceiver
     private eventLogFile: fs.WriteStream
     public onStopEvent: DeferredEvent<void>
-
     public stopped: boolean = false
     public recordingStartTimestamp: number = -1
     public startedBy: GuildMember
@@ -111,25 +110,26 @@ class Recorder {
         this.logEvent('userSpeakStart', [ userId ])
 
         const speakingStartTime = this.currentRecordingTime
+        
+        // received opus -> pcm -> mp3 22kHz mono
+        const opusNetworkStream = this.voiceReceiver.subscribe(userId, { end: { behavior: EndBehaviorType.AfterSilence, duration: 200 }})
+        const opusToPcm = new prism.opus.Decoder({ frameSize: 960, channels: 2, rate: 48000 })
+        const pcmToMp3 = child_process.spawn(`ffmpeg -f s16le -ar 48000 -ac 2 -i - -f mp3 -ar 22050 -ac 1 -`, { shell: true })
 
-        const pcmFilename = path.join(this.recordingsDir, `${speakingStartTime}-${userId}.pcm`)
-        const pcmFileStream = fs.createWriteStream(pcmFilename)
-        const opusNetworkStream = this.voiceReceiver.subscribe(userId, { end: { behavior: EndBehaviorType.AfterSilence, duration: 100 }})
+        const outputFilename = path.join(this.recordingsDir, `${userId}.recording.mp3`)
+        const outputFile = fs.createWriteStream(outputFilename)
 
-        const decoder = new prism.opus.Decoder({ frameSize: 960, channels: 2, rate: 48000 })
+        opusNetworkStream.pipe(opusToPcm)
+        opusToPcm.pipe(pcmToMp3.stdin)
+        pcmToMp3.stdout.pipe(outputFile)
 
-        // opus network stream -> decoder -> pcm file stream pipeline
-        pipeline(opusNetworkStream, decoder, pcmFileStream, async (err) => {
-            // Error, but transcode what we have already recorded anyway
-            if (err)
-                console.warn(`❌ Erro ao escrever arquivo ${pcmFilename} - ${err.message}`);
-            
-            console.log(`⌛ Transcodando arquivo ${pcmFilename}..`)
-            const targetFilename = path.join(this.recordingsDir, `${speakingStartTime}-${this.currentRecordingTime},${userId}.ogg`)
+        pcmToMp3.once('exit', () => {
+            const speakingStopTime = this.currentRecordingTime
 
-            // Transcode, then delete original pcm file
-            await this.transcodePcm(pcmFilename, targetFilename)
-            fsp.unlink(pcmFilename)
+            console.log(`💾 Arquivo escrito ${outputFilename}..`)
+
+            // rename file
+            fsp.rename(outputFilename, path.join(this.recordingsDir, `${speakingStartTime}-${speakingStopTime},${userId}.mp3`))
         })
     }
 
@@ -153,6 +153,14 @@ class Recorder {
         } else if (oldState.channelId === this.voiceChannel.id && newState.channelId !== this.voiceChannel.id) {
             // Left the channel
             this.logEvent('userLeaveChannel', [ newState.id ])
+
+            // Check if we're the only ones in the channel now
+            const vc = await this.voiceChannel.fetch()
+
+            if (vc.members.size <= 1 || !vc.members.has(this.client.user.id)) {
+                // Stop the recording
+                this.stop()
+            }
         }
     }
 
@@ -173,18 +181,6 @@ class Recorder {
             // Seems to be a real disconnect which SHOULDN'T be recovered from
             this.stop()
         }
-    }
-
-    /**
-     * Spawns a ffmpeg process, and transcodes the pcm file to a better format. Resolves once the process exits.
-     * @param sourceFile Source PCM file path. 
-     * @param targetFile Target file path.
-     */
-    private transcodePcm(sourceFile: string, targetFile: string): Promise<void> {
-        return new Promise(resolve => {
-            child_process.spawn(`ffmpeg -f s16le -ar 48000 -ac 2 -i ${sourceFile} ${targetFile}`, { shell: true })
-                .once('exit', () => resolve())
-        })
     }
 
     /**

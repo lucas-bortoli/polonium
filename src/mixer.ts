@@ -28,7 +28,7 @@ class Mixer {
     
         fileList = fileList
             .filter(f => f !== path.basename(this.outputFilePath))
-            .filter(f => path.extname(f) === '.ogg')
+            .filter(f => path.extname(f) === '.ogg' || path.extname(f) === '.mp3')
     
         let files = fileList.map(f => ({
             name: f,
@@ -60,7 +60,7 @@ class Mixer {
      * The absolute path to the output file of the mixer.
      */
     public get outputFilePath(): string {
-        return path.join(this.recordingsDir, 'output.ogg')
+        return path.join(this.recordingsDir, 'output.mp3')
     }
 }
 
