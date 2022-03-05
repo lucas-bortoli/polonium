@@ -1,9 +1,10 @@
 import { GuildMember } from "discord.js";
+import Recorder from "./recorder";
 
 enum PermissionLevel {
-    ROOT = 0,
-    GUILD_MODERATOR = 1,
-    USER = 2
+    ROOT = 1000,
+    GUILD_MODERATOR = 10,
+    USER = 1
 }
 
 class Utils {
@@ -39,6 +40,26 @@ class Utils {
 
         // User
         return PermissionLevel.USER
+    }
+
+    /**
+     * Checks if a guild member can stop the current recording.
+     * @param member The member who's trying to stop the recording
+     * @param recording The relevant recording
+     */
+    static memberCanStopRecording(member: GuildMember, recording: Recorder): boolean {
+        const member_perm = Utils.determineMemberPermissionLevel(member)
+
+        // Root and mods can always stop recordings
+        if (member_perm === PermissionLevel.ROOT) return true
+        if (member_perm === PermissionLevel.GUILD_MODERATOR) return true
+
+        // Regular users can stop the recording if they started it
+        if (member.id === recording.startedBy.id)
+            return true
+
+        // Can't stop the recording
+        return false
     }
 }
 

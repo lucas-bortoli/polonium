@@ -4,7 +4,7 @@ import Recorder, { Recorders } from './recorder'
 import Mixer from './mixer'
 import Utils from './util'
 import * as fsp from 'fs/promises'
-import { l } from './lang'
+import { l } from './strings'
 
 enum CommandResult {
     Success = 0,
@@ -42,14 +42,11 @@ const Commands: Command[] = [
                 return CommandResult.Error
             }
 
-            const permissionLevel = Utils.determineMemberPermissionLevel(message.member)
-
             if (Recorders.has(message.guildId)) {
                 const prevRecording = Recorders.get(message.guildId)
-                const prevPermissionLevel = Utils.determineMemberPermissionLevel(prevRecording.startedBy)
 
-                if (message.author.id !== prevRecording.startedBy.id
-                    && permissionLevel > prevPermissionLevel) {
+                // Check if the user has sufficient privileges to stop the recording
+                if (Utils.memberCanStopRecording(message.member, prevRecording)) {
                         // Ask to stop previous recording
                         await message.reply(l('cmdStartAlreadyRecordingAskOverride', { PREFIX: process.env.PREFIX }))
                         let replies = await message.channel.awaitMessages({
@@ -71,7 +68,7 @@ const Commands: Command[] = [
                 }
             }
 
-            await message.reply('cmdStartEnteringChannel')
+            await message.reply(l('cmdStartEnteringChannel'))
 
             const voiceConnection = joinVoiceChannel({
                 channelId: voiceChannel.id,
@@ -120,10 +117,9 @@ const Commands: Command[] = [
             }
 
             const recorder = Recorders.get(message.guildId)
-            const permissionLevel = Utils.determineMemberPermissionLevel(message.member)
-            const prevPermissionLevel = Utils.determineMemberPermissionLevel(recorder.startedBy)
 
-            if (permissionLevel <= prevPermissionLevel || message.author.id === recorder.startedBy.id) {
+            // Check if the user has sufficient privileges to stop the recording
+            if (!Utils.memberCanStopRecording(message.member, recorder)) {
                 await message.reply(l('cmdStopInsufficientPermissions'))
                 return CommandResult.NoPermission
             }

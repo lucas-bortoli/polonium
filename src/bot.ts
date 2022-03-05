@@ -7,6 +7,7 @@ const client = new Discord.Client({
 })
 
 client.on('ready', async () => {
+    await client.application.fetch()
     console.log('✅ Client ready')
 })
 

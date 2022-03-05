@@ -28,6 +28,9 @@ class Recorder {
     public recordingStartTimestamp: number = -1
     public startedBy: GuildMember
 
+    // Store reference to the listener
+    private _bind_voiceStateUpdate: (oldState: VoiceState, newState: VoiceState) => void
+
     constructor(startedBy: GuildMember, voiceChannel: VoiceBasedChannel, voiceConnection: VoiceConnection) {
         this.voiceConnection = voiceConnection
         this.voiceChannel = voiceChannel
@@ -56,7 +59,8 @@ class Recorder {
         // Create event listeners
         this.voiceReceiver.speaking.addListener('start', uid => this.onUserSpeakingStart(uid))
         this.voiceReceiver.speaking.addListener('end', uid => this.onUserSpeakingStop(uid))
-        this.client.on('voiceStateUpdate', this.onUserVoiceStateUpdate)
+        this._bind_voiceStateUpdate = this.onUserVoiceStateUpdate.bind(this)
+        this.client.on('voiceStateUpdate', this._bind_voiceStateUpdate)
 
         this.logEvent('start', [])
 
@@ -71,7 +75,7 @@ class Recorder {
         // Remove listeners and close streams
         this.voiceReceiver.speaking.removeAllListeners('start')
         this.voiceReceiver.speaking.removeAllListeners('end')
-        this.client.removeListener('voiceStateUpdate', this.onUserVoiceStateUpdate)
+        this.client.removeListener('voiceStateUpdate', this._bind_voiceStateUpdate)
 
         if (this.voiceConnection)
             this.voiceConnection.destroy()
