@@ -57,8 +57,7 @@ class Mixer {
         let files = fileList.map(f => ({
             name: f,
             startMs: parseInt(f.split(',')[0].split('-')[0]),
-            endMs: parseInt(f.split(',')[0].split('-')[1]),
-            userId: f.split(',')[1].split('.').shift()
+            endMs: parseInt(f.split(',')[0].split('-')[1])
         }))
     
         // Build command
