@@ -97,6 +97,7 @@ class Recorder {
         if (this.sfxPlayer)
             this.sfxPlayer.stop()
 
+        this._bind_voiceStateUpdate = null
         this.voiceConnection = null
         this.sfxPlayer = null
         this.stopped = true
