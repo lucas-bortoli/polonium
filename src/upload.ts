@@ -10,6 +10,7 @@ const FILE_PIECE_MAX_SIZE = Math.round(7.2 * 1024 * 1024)
 /**
  * File entry information used by the basedFS server to stream the file back to the user
  * https://github.com/lucas-bortoli/basedfs
+ * https://github.com/lucas-bortoli/basedfs-share-server
  */
 interface CloudFileEntry {
     type: 'file',
