@@ -74,7 +74,7 @@ class Mixer {
     
         for (let i = 0; i < files.length; i++) { command += `[out${i}]` }
     
-        command += `amix=inputs=${files.length}[out]" -map "[out]" ${path.join(this.recordingsDir, outputFileName)}`
+        command += `amix=inputs=${files.length}:normalize=0[out]" -map "[out]" ${path.join(this.recordingsDir, outputFileName)}`
     
         return command
     }
