@@ -95,6 +95,7 @@ export default class FileUpload {
         if (ratelimit_remaining === 0)
             await Utils.delay(ratelimit_reset_after * 1200)
     
+        //@ts-ignore
         return body.attachments[0].url as string
     }
 
